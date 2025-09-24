@@ -1,0 +1,9 @@
+<library path="sparsedrive_rviz_plugin">
+  <class name="sparsedrive_rviz_plugin/SparseDrive"
+         type="sparsedrive_rviz_plugin::SparseDriveDisplay"
+         base_class_type="rviz_common::Display">
+    <description>
+      Displays SparseDrive data.
+    </description>
+  </class>
+</library>

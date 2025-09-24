@@ -108,6 +108,9 @@ class SparseDriveNode(Node):
         self._plan_pub = self.create_publisher(Path,
                                                  "plan",
                                                  10)
+        self._plan_gt_pub = self.create_publisher(Path, "plan_gt", 10)
+        self._map_pred_pub = self.create_publisher(Image, "map_pred", 10)
+        self._map_gt_pub = self.create_publisher(Image, "map_gt", 10)
         
         # Subscribers
         self._color_image_sub = self.create_subscription(Image, "image_raw", self.color_image_callback, self.qos_profile, callback_group=self.group_1)
@@ -290,6 +293,35 @@ class SparseDriveNode(Node):
             else:
                 plan_msg.poses = []
                 self._plan_pub.publish(plan_msg)
+
+            # Publish map and ground truth data if available
+            if 'map_pred' in self.output[0]['img_bbox']:
+                map_pred = self.output[0]['img_bbox']['map_pred'].cpu().numpy()
+                map_pred_msg = self.cv_bridge.cv2_to_imgmsg(map_pred, "mono8")
+                map_pred_msg.header.stamp = self.get_clock().now().to_msg()
+                self._map_pred_pub.publish(map_pred_msg)
+
+            if 'map_gt' in self.output[0]['img_bbox']:
+                map_gt = self.output[0]['img_bbox']['map_gt'].cpu().numpy()
+                map_gt_msg = self.cv_bridge.cv2_to_imgmsg(map_gt, "mono8")
+                map_gt_msg.header.stamp = self.get_clock().now().to_msg()
+                self._map_gt_pub.publish(map_gt_msg)
+
+            if 'planning_gt' in self.output[0]['img_bbox']:
+                plan_gt = self.output[0]['img_bbox']['planning_gt'].cpu().numpy()
+                plan_gt_msg = Path()
+                for i, waypoint in enumerate(plan_gt):
+                    pose = PoseStamped()
+                    pose.header.stamp = self.get_clock().now().to_msg()
+                    pose.header.frame_id = 'os_sensor_roof_top'
+                    pose.pose.position.x = float(waypoint[1])
+                    pose.pose.position.y = -float(waypoint[0])
+                    pose.pose.position.z = 0.0
+                    pose.pose.orientation.w = 1.0
+                    plan_gt_msg.poses.append(pose)
+                plan_gt_msg.header.stamp = self.get_clock().now().to_msg()
+                plan_gt_msg.header.frame_id = 'os_sensor_roof_top'
+                self._plan_gt_pub.publish(plan_gt_msg)
                 
     def shutdown_callback(self):
         self.get_logger().warn("Shutting down...")

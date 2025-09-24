@@ -2,16 +2,17 @@
 
 This document describes the visualization tools provided for the `sparsedrive_ros2` package.
 
-## BEV Image Visualizer
+## BEV Renderer
 
-The BEV (Bird's Eye View) image visualizer is a Python-based ROS2 node that subscribes to the output of the `sparsedrive_node` and generates a 2D image representation of the scene.
+The BEV (Bird's Eye View) renderer is a Python-based ROS2 node that subscribes to the output of the `sparsedrive_node` and generates a 2D image representation of the scene. The visual style is a faithful re-implementation of the original `bev_render.py` script from the SparseDrive project, using OpenCV for performant rendering.
 
 ### Features
 
--   Visualizes 3D object detections as green circles.
--   Displays predicted trajectories for objects as blue lines.
--   Shows the planned ego-path as a red line.
--   Publishes the visualization as a `sensor_msgs/msg/Image` on the `/bev_image` topic.
+-   Visualizes 3D object detections, trajectories, and planned paths with the original color schemes.
+-   Visualizes map predictions and ground truth from `nav_msgs/OccupancyGrid` topics.
+-   Overlays the SDC car and a legend for clarity.
+-   Publishes the final visualization as a `sensor_msgs/msg/Image` on the `/bev_image` topic.
+-   Rendering is triggered by the `/image_raw` topic to ensure synchronization with the model's input.
 
 ### How to Run
 
@@ -23,51 +24,28 @@ The BEV (Bird's Eye View) image visualizer is a Python-based ROS2 node that subs
     ```bash
     source install/setup.bash
     ```
-3.  **Launch the visualizer:**
+3.  **Launch the renderer:**
     ```bash
-    ros2 run sparsedrive_ros2 bev_visualizer
+    ros2 run sparsedrive_ros2 bev_renderer
     ```
 4.  **View the output in RViz:**
     -   Add an `Image` display.
     -   Set the topic to `/bev_image`.
 
-## 3D RViz Plugin
+## Standard ROS Messages for 3D Visualization
 
-The 3D RViz plugin provides a more integrated visualization experience directly within the RViz 3D view.
+All data is published using standard ROS message types, which can be visualized directly in RViz for 3D inspection.
 
-### Features
-
--   Renders 3D bounding boxes for object detections.
--   Displays predicted trajectories as lines.
--   Shows the planned ego-path as a line.
--   All visualizations are rendered in the 3D scene, respecting the message's frame ID.
-
-### How to Use
-
-1.  **Build the plugin:**
-    ```bash
-    colcon build --packages-select sparsedrive_rviz_plugin
-    ```
-2.  **Source the workspace:**
-    ```bash
-    source install/setup.bash
-    ```
-3.  **Launch RViz:**
-    ```bash
-    rviz2
-    ```
-4.  **Add the plugin display:**
-    -   Click the "Add" button in the "Displays" panel.
-    -   Select the `sparsedrive_rviz_plugin/SparseDrive` display.
-    -   Configure the topic names in the display's properties.
+-   **Detections:** `vision_msgs/Detection3DArray` on `/detection`. Use the `Detection3DArray` display in the `rviz_vision_msgs` package.
+-   **Trajectories:** `multipath_msgs/MultiPath` on `/traj`. Use a `Path` display for each path in the array.
+-   **Plans:** `nav_msgs/Path` on `/plan` and `/plan_gt`. Use the `Path` display.
+-   **Maps:** `nav_msgs/OccupancyGrid` on `/map_pred` and `/map_gt`. Use the `Map` display.
 
 ## Unit Tests
 
-Both visualization tools come with unit tests to ensure their correctness.
+A unit test is provided for the BEV renderer to verify the correctness of the drawing logic.
 
--   **BEV Visualizer Test:**
-    -   Located in `sparsedrive_ros2/visualization/test/test_bev_visualizer.py`.
-    -   Generates a test image `test_bev_visualization.png` in the root directory.
-    -   Run with `python3 sparsedrive_ros2/visualization/test/test_bev_visualizer.py`.
--   **RViz Plugin Test:**
-    -   The RViz plugin test has been removed due to the complexity of mocking the RViz environment.
+-   **BEV Renderer Test:**
+    -   Located in `sparsedrive_ros2/test/test_bev_render.py`.
+    -   Verifies the rendering logic by checking pixel colors in an output image.
+    -   Run with `colcon test --packages-select sparsedrive_ros2`.

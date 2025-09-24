@@ -15,9 +15,10 @@ from nav_msgs.msg import Odometry
 from vision_msgs.msg import Detection3DArray
 from vision_msgs.msg import Detection3D
 from vision_msgs.msg import ObjectHypothesisWithPose
-from nav_msgs.msg import Path
-from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Path, OccupancyGrid
+from geometry_msgs.msg import PoseStamped, Point
 from multipath_msgs.msg import MultiPath
+from visualization_msgs.msg import Marker, MarkerArray
 
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 
@@ -60,6 +61,17 @@ class SparseDriveNode(Node):
         
         self.declare_parameter("score_threshold", 0.3)
         self.score_threshold = self.get_parameter("score_threshold").get_parameter_value().double_value
+
+        self.declare_parameter("map_resolution", 0.5)
+        self.map_resolution = self.get_parameter("map_resolution").get_parameter_value().double_value
+        self.declare_parameter("map_width", 200)
+        self.map_width = self.get_parameter("map_width").get_parameter_value().integer_value
+        self.declare_parameter("map_height", 200)
+        self.map_height = self.get_parameter("map_height").get_parameter_value().integer_value
+        self.declare_parameter("map_origin_x", -50.0)
+        self.map_origin_x = self.get_parameter("map_origin_x").get_parameter_value().double_value
+        self.declare_parameter("map_origin_y", -50.0)
+        self.map_origin_y = self.get_parameter("map_origin_y").get_parameter_value().double_value
 
         ## other inits
         self.group_1 = MutuallyExclusiveCallbackGroup() # camera subscribers
@@ -109,8 +121,8 @@ class SparseDriveNode(Node):
                                                  "plan",
                                                  10)
         self._plan_gt_pub = self.create_publisher(Path, "plan_gt", 10)
-        self._map_pred_pub = self.create_publisher(Image, "map_pred", 10)
-        self._map_gt_pub = self.create_publisher(Image, "map_gt", 10)
+        self._map_pred_pub = self.create_publisher(OccupancyGrid, "map_pred", 10)
+        self._map_gt_pub = self.create_publisher(OccupancyGrid, "map_gt", 10)
         
         # Subscribers
         self._color_image_sub = self.create_subscription(Image, "image_raw", self.color_image_callback, self.qos_profile, callback_group=self.group_1)
@@ -297,15 +309,29 @@ class SparseDriveNode(Node):
             # Publish map and ground truth data if available
             if 'map_pred' in self.output[0]['img_bbox']:
                 map_pred = self.output[0]['img_bbox']['map_pred'].cpu().numpy()
-                map_pred_msg = self.cv_bridge.cv2_to_imgmsg(map_pred, "mono8")
-                map_pred_msg.header.stamp = self.get_clock().now().to_msg()
-                self._map_pred_pub.publish(map_pred_msg)
+                grid = OccupancyGrid()
+                grid.header.stamp = self.get_clock().now().to_msg()
+                grid.header.frame_id = 'os_sensor_roof_top'
+                grid.info.resolution = self.map_resolution
+                grid.info.width = self.map_width
+                grid.info.height = self.map_height
+                grid.info.origin.position.x = self.map_origin_x
+                grid.info.origin.position.y = self.map_origin_y
+                grid.data = (map_pred.flatten() * 100).astype(np.int8).tolist()
+                self._map_pred_pub.publish(grid)
 
             if 'map_gt' in self.output[0]['img_bbox']:
                 map_gt = self.output[0]['img_bbox']['map_gt'].cpu().numpy()
-                map_gt_msg = self.cv_bridge.cv2_to_imgmsg(map_gt, "mono8")
-                map_gt_msg.header.stamp = self.get_clock().now().to_msg()
-                self._map_gt_pub.publish(map_gt_msg)
+                grid = OccupancyGrid()
+                grid.header.stamp = self.get_clock().now().to_msg()
+                grid.header.frame_id = 'os_sensor_roof_top'
+                grid.info.resolution = self.map_resolution
+                grid.info.width = self.map_width
+                grid.info.height = self.map_height
+                grid.info.origin.position.x = self.map_origin_x
+                grid.info.origin.position.y = self.map_origin_y
+                grid.data = (map_gt.flatten() * 100).astype(np.int8).tolist()
+                self._map_gt_pub.publish(grid)
 
             if 'planning_gt' in self.output[0]['img_bbox']:
                 plan_gt = self.output[0]['img_bbox']['planning_gt'].cpu().numpy()

@@ -2,8 +2,9 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from vision_msgs.msg import Detection3DArray
-from nav_msgs.msg import Path, OccupancyGrid
+from nav_msgs.msg import Path
 from multipath_msgs.msg import MultiPath
+from visualization_msgs.msg import MarkerArray
 from cv_bridge import CvBridge
 import numpy as np
 import cv2
@@ -45,8 +46,8 @@ class BEVRendererNode(Node):
         self.create_subscription(MultiPath, '/traj', self.traj_callback, 10)
         self.create_subscription(Path, '/plan', self.plan_callback, 10)
         self.create_subscription(Path, '/plan_gt', self.plan_gt_callback, 10)
-        self.create_subscription(OccupancyGrid, '/map_pred', self.map_pred_callback, 10)
-        self.create_subscription(OccupancyGrid, '/map_gt', self.map_gt_callback, 10)
+        self.create_subscription(MarkerArray, '/map_pred', self.map_pred_callback, 10)
+        self.create_subscription(MarkerArray, '/map_gt', self.map_gt_callback, 10)
 
         # Trigger
         self.create_subscription(Image, '/image_raw', self.render_trigger, 10)
@@ -61,8 +62,8 @@ class BEVRendererNode(Node):
     def render_trigger(self, msg):
         bev_image = np.zeros((self.image_height, self.image_width, 3), dtype=np.uint8)
 
-        if self.latest_map_gt: self.draw_map(bev_image, self.latest_map_gt, (0, 255, 0)) # Green
-        if self.latest_map_pred: self.draw_map(bev_image, self.latest_map_pred, (0, 0, 255)) # Red
+        if self.latest_map_gt: self.draw_map(bev_image, self.latest_map_gt)
+        if self.latest_map_pred: self.draw_map(bev_image, self.latest_map_pred)
         if self.latest_det: self.draw_detection_pred(bev_image, self.latest_det)
         if self.latest_traj: self.draw_motion_pred(bev_image, self.latest_traj)
         if self.latest_plan: self.draw_planning(bev_image, self.latest_plan, 'autumn')
@@ -103,16 +104,15 @@ class BEVRendererNode(Node):
         points = np.array([self.world_to_pixel(p.pose.position.x, p.pose.position.y) for p in msg.poses], dtype=np.int32)
         self.render_traj(image, points, colormap, linestyle)
 
-    def draw_map(self, image, msg, color):
-        grid = np.array(msg.data, dtype=np.uint8).reshape((msg.info.height, msg.info.width))
-        occupied_indices = np.where(grid > 50)
+    def draw_map(self, image, msg):
+        for marker in msg.markers:
+            points = []
+            for p in marker.points:
+                points.append(self.world_to_pixel(p.x, p.y))
 
-        for r, c in zip(*occupied_indices):
-            x = c * msg.info.resolution + msg.info.origin.position.x
-            y = r * msg.info.resolution + msg.info.origin.position.y
-            px, py = self.world_to_pixel(x, y)
-            if 0 <= px < self.image_width and 0 <= py < self.image_height:
-                image[py, px] = color
+            if len(points) > 1:
+                color = (marker.color.b * 255, marker.color.g * 255, marker.color.r * 255) # BGR
+                cv2.polylines(image, [np.array(points, dtype=np.int32)], isClosed=False, color=color, thickness=2)
 
     def render_traj(self, image, traj, colormap, linestyle='-'):
         cmap = cv2.applyColorMap(np.arange(256, dtype=np.uint8).reshape(1, -1), getattr(cv2, f'COLORMAP_{colormap.upper()}'))

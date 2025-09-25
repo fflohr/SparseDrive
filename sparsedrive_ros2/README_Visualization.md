@@ -9,7 +9,7 @@ The BEV (Bird's Eye View) renderer is a Python-based ROS2 node that subscribes t
 ### Features
 
 -   Visualizes 3D object detections, trajectories, and planned paths with the original color schemes.
--   Visualizes map predictions and ground truth from `nav_msgs/OccupancyGrid` topics.
+-   Visualizes map predictions and ground truth from `visualization_msgs/MarkerArray` topics.
 -   Overlays the SDC car and a legend for clarity.
 -   Publishes the final visualization as a `sensor_msgs/msg/Image` on the `/bev_image` topic.
 -   Rendering is triggered by the `/image_raw` topic to ensure synchronization with the model's input.
@@ -39,7 +39,7 @@ All data is published using standard ROS message types, which can be visualized 
 -   **Detections:** `vision_msgs/Detection3DArray` on `/detection`. Use the `Detection3DArray` display in the `rviz_vision_msgs` package.
 -   **Trajectories:** `multipath_msgs/MultiPath` on `/traj`. Use a `Path` display for each path in the array.
 -   **Plans:** `nav_msgs/Path` on `/plan` and `/plan_gt`. Use the `Path` display.
--   **Maps:** `nav_msgs/OccupancyGrid` on `/map_pred` and `/map_gt`. Use the `Map` display.
+-   **Maps:** `visualization_msgs/MarkerArray` on `/map_pred` and `/map_gt`. Use the `MarkerArray` display.
 
 ## Unit Tests
 

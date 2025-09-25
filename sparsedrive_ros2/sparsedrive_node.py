@@ -19,6 +19,7 @@ from nav_msgs.msg import Path, OccupancyGrid
 from geometry_msgs.msg import PoseStamped, Point
 from multipath_msgs.msg import MultiPath
 from visualization_msgs.msg import Marker, MarkerArray
+from visualization_msgs.msg import Marker, MarkerArray
 
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 
@@ -121,8 +122,8 @@ class SparseDriveNode(Node):
                                                  "plan",
                                                  10)
         self._plan_gt_pub = self.create_publisher(Path, "plan_gt", 10)
-        self._map_pred_pub = self.create_publisher(OccupancyGrid, "map_pred", 10)
-        self._map_gt_pub = self.create_publisher(OccupancyGrid, "map_gt", 10)
+        self._map_pred_pub = self.create_publisher(MarkerArray, "map_pred", 10)
+        self._map_gt_pub = self.create_publisher(MarkerArray, "map_gt", 10)
         
         # Subscribers
         self._color_image_sub = self.create_subscription(Image, "image_raw", self.color_image_callback, self.qos_profile, callback_group=self.group_1)
@@ -308,30 +309,60 @@ class SparseDriveNode(Node):
 
             # Publish map and ground truth data if available
             if 'map_pred' in self.output[0]['img_bbox']:
-                map_pred = self.output[0]['img_bbox']['map_pred'].cpu().numpy()
-                grid = OccupancyGrid()
-                grid.header.stamp = self.get_clock().now().to_msg()
-                grid.header.frame_id = 'os_sensor_roof_top'
-                grid.info.resolution = self.map_resolution
-                grid.info.width = self.map_width
-                grid.info.height = self.map_height
-                grid.info.origin.position.x = self.map_origin_x
-                grid.info.origin.position.y = self.map_origin_y
-                grid.data = (map_pred.flatten() * 100).astype(np.int8).tolist()
-                self._map_pred_pub.publish(grid)
+                map_vectors = self.output[0]['img_bbox']['map_pred']['vectors']
+                map_labels = self.output[0]['img_bbox']['map_pred']['labels']
+                map_scores = self.output[0]['img_bbox']['map_pred']['scores']
+                marker_array = MarkerArray()
+                for i, (vec, label, score) in enumerate(zip(map_vectors, map_labels, map_scores)):
+                    marker = Marker()
+                    marker.header.frame_id = "os_sensor_roof_top"
+                    marker.header.stamp = self.get_clock().now().to_msg()
+                    marker.ns = "map_pred"
+                    marker.id = i
+                    marker.type = Marker.LINE_STRIP
+                    marker.action = Marker.ADD
+                    marker.scale.x = 0.2
+                    marker.color.a = 1.0
+                    # Color based on label - simplified for now
+                    marker.color.r = float((label * 50) % 255) / 255.0
+                    marker.color.g = float((label * 100) % 255) / 255.0
+                    marker.color.b = float((label * 150) % 255) / 255.0
+                    marker.text = f"score: {score:.2f}"
+                    for point in vec:
+                        p = Point()
+                        p.x = float(point[0])
+                        p.y = float(point[1])
+                        p.z = 0.0
+                        marker.points.append(p)
+                    marker_array.markers.append(marker)
+                self._map_pred_pub.publish(marker_array)
 
             if 'map_gt' in self.output[0]['img_bbox']:
-                map_gt = self.output[0]['img_bbox']['map_gt'].cpu().numpy()
-                grid = OccupancyGrid()
-                grid.header.stamp = self.get_clock().now().to_msg()
-                grid.header.frame_id = 'os_sensor_roof_top'
-                grid.info.resolution = self.map_resolution
-                grid.info.width = self.map_width
-                grid.info.height = self.map_height
-                grid.info.origin.position.x = self.map_origin_x
-                grid.info.origin.position.y = self.map_origin_y
-                grid.data = (map_gt.flatten() * 100).astype(np.int8).tolist()
-                self._map_gt_pub.publish(grid)
+                map_gt_vectors = self.output[0]['img_bbox']['map_gt']['vectors']
+                map_gt_labels = self.output[0]['img_bbox']['map_gt']['labels']
+                marker_array = MarkerArray()
+                for i, (vec, label) in enumerate(zip(map_gt_vectors, map_gt_labels)):
+                    marker = Marker()
+                    marker.header.frame_id = "os_sensor_roof_top"
+                    marker.header.stamp = self.get_clock().now().to_msg()
+                    marker.ns = "map_gt"
+                    marker.id = i
+                    marker.type = Marker.LINE_STRIP
+                    marker.action = Marker.ADD
+                    marker.scale.x = 0.2
+                    marker.color.a = 1.0
+                    # Color based on label - simplified for now
+                    marker.color.r = float((label * 50) % 255) / 255.0
+                    marker.color.g = float((label * 100) % 255) / 255.0
+                    marker.color.b = float((label * 150) % 255) / 255.0
+                    for point in vec:
+                        p = Point()
+                        p.x = float(point[0])
+                        p.y = float(point[1])
+                        p.z = 0.0
+                        marker.points.append(p)
+                    marker_array.markers.append(marker)
+                self._map_gt_pub.publish(marker_array)
 
             if 'planning_gt' in self.output[0]['img_bbox']:
                 plan_gt = self.output[0]['img_bbox']['planning_gt'].cpu().numpy()
